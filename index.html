@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asseverazione – compilazione PDF</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --muted:#6b7385; --line:#d9dde5; --accent:#1f5fd6; --err:#b3261e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151c; --card:#1b2030; --ink:#e8ebf2; --muted:#98a1b5; --line:#2e3547; --accent:#5b9bff; --err:#ff8a80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.35rem; margin:0 0 4px; }
+  p.sub { margin:0 0 20px; color:var(--muted); font-size:.92rem; }
+  fieldset { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 16px 16px; margin:0 0 16px; }
+  legend { font-weight:600; padding:0 6px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  .full { grid-column:1 / -1; }
+  @media (max-width:560px) { .grid { grid-template-columns:1fr; } }
+  label { display:block; margin:12px 0 0; font-weight:500; font-size:.95rem; }
+  small { display:block; color:var(--muted); font-weight:400; font-size:.8rem; }
+  input, select, textarea { width:100%; margin-top:6px; padding:10px 12px; font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:8px; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  input.bad, select.bad, textarea.bad { border-color:var(--err); }
+  button { width:100%; padding:14px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:10px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  #msg { margin:12px 0 0; min-height:1.4em; font-size:.92rem; }
+  #msg.err { color:var(--err); }
+  details { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; margin:0 0 16px; }
+  summary { cursor:pointer; font-weight:600; }
+  .pv { font-size:.85rem; color:var(--muted); margin:10px 0 0; }
+  .pv b { color:var(--ink); }
+  footer { margin-top:20px; color:var(--muted); font-size:.8rem; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Asseverazione ex art. 44 – compilazione</h1>
+  <p class="sub">Compila tutti i campi e scarica il PDF. <span lang="en">Fill in every field and download the filled PDF.</span></p>
+
+  <form id="f" autocomplete="off" novalidate>
+    <div id="fields"></div>
+
+    <details>
+      <summary>Anteprima del testo / Text preview</summary>
+      <p class="pv"><b>Datore di lavoro:</b> <span id="pv1"></span></p>
+      <p class="pv"><b>Lavoratore:</b> <span id="pv2"></span></p>
+      <p class="pv"><b>Pagina 3:</b> <span id="pv3"></span></p>
+    </details>
+
+    <button id="go" type="submit">Scarica il PDF compilato</button>
+    <div id="msg" role="status"></div>
+  </form>
+
+  <footer>I dati restano sul tuo dispositivo: nessuna informazione viene inviata a un server.</footer>
+</main>
+
+<script src="lib/pdf-lib.min.js"></script>
+<script src="lib/fontkit.umd.min.js"></script>
+<script src="fill.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var SEX = [["M", "Maschio"], ["F", "Femmina"]];
+  var SINO = [["SI’", "SI"], ["NO", "NO"]];
+  var NO_SI = [["NO", "NO"], ["SI", "SI"]];
+
+  // f(id, label, opts) – opts: hint, type, options, def, full
+  function f(id, label, o) { o = o || {}; o.id = id; o.label = label; return o; }
+
+  var GROUPS = [
+    { title: "Datore di lavoro / Employer", fields: [
+      f("empSurname", "Cognome", { hint: "Es. MIAH" }),
+      f("empName", "Nome", { hint: "Es. JAGIR" }),
+      f("empSex", "Sesso", { options: SEX }),
+      f("empBirth", "Data di nascita", { type: "date" }),
+      f("empBirthPlace", "Luogo di nascita", { hint: "Es. BANGLADESH (EE) oppure PADOVA (PD)" }),
+      f("empCit", "Cittadinanza", { hint: "Es. BANGLADESH" }),
+      f("empComune", "Comune di residenza", { hint: "Es. RAPALLO (GE)" }),
+      f("empCap", "CAP", { hint: "Es. 16035" }),
+      f("empAddress", "Indirizzo di residenza", { hint: "Es. CORSO MAMELI GOFFREDO N.302 INT 14", full: true }),
+      f("empCf", "Codice fiscale", { hint: "16 caratteri" }),
+      f("empDocType", "Documento di identità", { options: [["Carta di identità", "Carta di identità"], ["Passaporto", "Passaporto"], ["Patente di guida", "Patente di guida"], ["Permesso di soggiorno", "Permesso di soggiorno"]] }),
+      f("empDocNum", "Numero del documento", { hint: "Es. CA07559BF" }),
+      f("empDocIssue", "Data di emissione", { type: "date" })
+    ]},
+    { title: "Lavoratore / Worker", fields: [
+      f("wkSurname", "Cognome", { hint: "Es. ISLAM" }),
+      f("wkName", "Nome", { hint: "Es. TARIFUL" }),
+      f("wkSex", "Sesso", { options: SEX }),
+      f("wkBirth", "Data di nascita", { type: "date" }),
+      f("wkBirthState", "Stato di nascita", { hint: "Es. BANGLADESH (EE)" }),
+      f("wkCit", "Cittadinanza", { hint: "Es. BANGLADESH" }),
+      f("wkPassport", "Numero del passaporto", { hint: "Es. A02711746" }),
+      f("wkPassportExp", "Scadenza del passaporto", { type: "date" })
+    ]},
+    { title: "Contratto / Contract", fields: [
+      f("ccnl", "Contratto collettivo applicato", { def: "CCNL LAVORO DOMESTICO", full: true }),
+      f("mansioni", "Mansioni", { hint: "Es. COLF" }),
+      f("inquadramento", "Inquadramento", { hint: "Es. DOMESTICO" }),
+      f("livello", "Livello", { hint: "Es. B" }),
+      f("tipologiaContr", "Tipologia contrattuale", { def: "TEMPO INDETERMINATO" }),
+      f("durata", "Durata del contratto", { def: "//", hint: "// se indeterminato" }),
+      f("orario", "Orario di lavoro settimanale", { hint: "Ore, es. 30" }),
+      f("retribuzione", "Retribuzione mensile lorda conforme al CCNL?", { options: SINO }),
+      f("luogo", "Luogo di lavoro", { hint: "Compilato dall’indirizzo del datore; puoi modificarlo", full: true })
+    ]},
+    { title: "Sistemazione alloggiativa / Accommodation", fields: [
+      f("alloComune", "Comune", { hint: "Es. GENOVA (GE)" }),
+      f("alloCap", "CAP", { hint: "Es. 16134" }),
+      f("alloAddress", "Indirizzo", { hint: "Es. VIA DEL LAGACCIO 11 INT 2A", full: true }),
+      f("locazione", "In locazione a carico del datore di lavoro", { options: NO_SI, def: "NO" }),
+      f("decurtazione", "Decurtazione della retribuzione", { options: NO_SI, def: "NO" })
+    ]},
+    { title: "Reddito e dipendenti / Income and employees", fields: [
+      f("fonte", "Fonte del reddito del datore di lavoro", { def: "LAVORO DIPENDENTE", list: ["LAVORO DIPENDENTE", "LAVORO AUTONOMO", "PENSIONE"], full: true }),
+      f("income", "Ultimo reddito lordo (euro)", { hint: "Solo numero, es. 27558", inputmode: "numeric" }),
+      f("dipendenti", "Dipendenti in forza", { def: "0", hint: "Numero", inputmode: "numeric" })
+    ]},
+    { title: "Minore e assunzione / Child and hiring", fields: [
+      f("child", "Cognome e nome del minore", { hint: "Es. BINTE JAKIR SALSABIL JULFA", full: true }),
+      f("childSex", "Sesso del minore", { options: [["F", "Femmina (nata)"], ["M", "Maschio (nato)"]] }),
+      f("childBirth", "Data di nascita del minore", { type: "date" }),
+      f("anprDate", "Data stato di famiglia (ANPR)", { type: "date", hint: "Data del certificato rilasciato dall’ANPR", full: true }),
+      f("type", "Tipologia di nulla osta", { textarea: true, full: true, hint: "Puoi modificare il testo (max 2 righe)",
+         def: "“ABIS – Fuori quota – Assistenza bambini dalla nascita fino a sei anni di età”." }),
+      f("docDate", "Data del documento (dopo “Legnaro,”)", { type: "date" })
+    ]}
+  ];
+
+  var ids = [];
+  var host = $("fields");
+  GROUPS.forEach(function (g) {
+    var fs = document.createElement("fieldset");
+    var lg = document.createElement("legend"); lg.textContent = g.title; fs.appendChild(lg);
+    var grid = document.createElement("div"); grid.className = "grid"; fs.appendChild(grid);
+    g.fields.forEach(function (o) {
+      ids.push(o.id);
+      var lab = document.createElement("label"); if (o.full) lab.className = "full";
+      lab.appendChild(document.createTextNode(o.label));
+      if (o.hint) { var s = document.createElement("small"); s.textContent = o.hint; lab.appendChild(s); }
+      var el;
+      if (o.options) {
+        el = document.createElement("select");
+        o.options.forEach(function (op) { var e = document.createElement("option"); e.value = op[0]; e.textContent = op[1]; el.appendChild(e); });
+      } else if (o.textarea) { el = document.createElement("textarea"); el.rows = 2; }
+      else { el = document.createElement("input"); el.type = o.type || "text"; if (o.inputmode) el.inputMode = o.inputmode; }
+      el.id = o.id;
+      if (o.def) el.value = o.def;
+      if (o.list) {
+        var dl = document.createElement("datalist"); dl.id = o.id + "_dl";
+        o.list.forEach(function (x) { var op = document.createElement("option"); op.value = x; dl.appendChild(op); });
+        el.setAttribute("list", dl.id); lab.appendChild(dl);
+      }
+      lab.appendChild(el); grid.appendChild(lab);
+    });
+    host.appendChild(fs);
+  });
+
+  var today = new Date(); today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  $("docDate").value = today.toISOString().slice(0, 10);
+
+  // "Luogo di lavoro" follows the employer's residence until the user edits it
+  var luogoTouched = false;
+  $("luogo").addEventListener("input", function () { luogoTouched = true; });
+  function syncLuogo() {
+    if (!luogoTouched) $("luogo").value = (($("empComune").value + " " + $("empAddress").value).trim()).toUpperCase();
+  }
+
+  function values() { var v = {}; ids.forEach(function (i) { v[i] = $(i).value; }); return v; }
+  function preview() {
+    syncLuogo();
+    var t = FillPdf.buildTexts(values());
+    $("pv1").textContent = t.employerPara; $("pv2").textContent = t.workerPara; $("pv3").textContent = t.narrative;
+  }
+  ids.forEach(function (i) { $(i).addEventListener("input", function () { $(i).classList.remove("bad"); preview(); }); });
+  preview();
+
+  function slug(s) { return s.trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "documento"; }
+
+  $("f").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var msg = $("msg"); msg.className = ""; msg.textContent = "";
+    var v = values();
+    var missing = ids.filter(function (i) { return !String(v[i]).trim(); });
+    ids.forEach(function (i) { $(i).classList.remove("bad"); });
+    if (missing.length) {
+      missing.forEach(function (i) { $(i).classList.add("bad"); });
+      msg.className = "err"; msg.textContent = "Compila tutti i campi evidenziati (" + missing.length + ").";
+      $(missing[0]).scrollIntoView({ block: "center" }); $(missing[0]).focus(); return;
+    }
+    if (!/^\d+([.,]\d+)?$/.test(v.income.trim())) {
+      $("income").classList.add("bad"); msg.className = "err"; msg.textContent = "Il reddito deve essere un numero (es. 27558).";
+      $("income").focus(); return;
+    }
+    var btn = $("go"); btn.disabled = true; msg.textContent = "Creo il PDF…";
+    try {
+      var res = await Promise.all([fetch("template.pdf"), fetch("fonts/LiberationSans-Regular.ttf")]);
+      if (!res[0].ok || !res[1].ok) throw new Error("Impossibile caricare il modello PDF.");
+      var tpl = await res[0].arrayBuffer(), font = await res[1].arrayBuffer();
+      var bytes = await FillPdf.fillPdf(v, tpl, font);
+      var url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      var a = document.createElement("a");
+      a.href = url; a.download = "asseverazione_" + slug(v.wkSurname + " " + v.wkName) + ".pdf";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      msg.textContent = "Fatto! Il download è partito.";
+    } catch (err) {
+      msg.className = "err"; msg.textContent = err.message || "Errore durante la creazione del PDF.";
+    } finally { btn.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>
